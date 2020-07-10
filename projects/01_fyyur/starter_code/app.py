@@ -12,70 +12,10 @@ import logging
 from logging import Formatter, FileHandler
 from flask_wtf import Form
 from forms import *
-import config
 from datetime import datetime
 import sys
-
-#----------------------------------------------------------------------------#
-# App Config.
-#----------------------------------------------------------------------------#
-app = Flask(__name__)
-moment = Moment(app)
-app.config.from_object('config')
-app.config['SQLALCHEMY_DATABASE_URI'] = config.SQLALCHEMY_DATABASE_URI
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
-migrate = Migrate(app, db)
-
-#----------------------------------------------------------------------------#
-# Models.
-#----------------------------------------------------------------------------#
-class Venue(db.Model):
-    __tablename__ = 'Venue'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String, nullable=True)
-    genres = db.Column(db.ARRAY(db.String(120)), nullable=True, default=[])
-    address = db.Column(db.String(120), nullable=True)
-    city = db.Column(db.String(120), nullable=True)
-    state = db.Column(db.String(120), nullable=True)
-    phone = db.Column(db.String(120))
-    website = db.Column(db.String(120))
-    facebook_link = db.Column(db.String(120))
-    seeking_talent = db.Column(db.Boolean())
-    seeking_description = db.Column(db.String(120))
-    image_link = db.Column(db.String(500))
-
-    venue_shows = db.relationship('Show', backref='Venue', lazy=True)
-   
-    def __repr__(self):
-      return f'<Venue {self.id} {self.name}>'
-
-
-class Artist(db.Model):
-    __tablename__ = 'Artist'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String, nullable=True)
-    city = db.Column(db.String(120), nullable=True)
-    state = db.Column(db.String(120), nullable=True)
-    phone = db.Column(db.String(120))
-    website = db.Column(db.String(120))
-    image_link = db.Column(db.String(500))
-    genres = db.Column(db.ARRAY(db.String(120)), nullable=True, default=[])
-    facebook_link = db.Column(db.String(120))
-    seeking_venue = db.Column(db.Boolean)
-    seeking_description = db.Column(db.String(200))
-
-    artist_shows = db.relationship('Show', backref='Artist', lazy=True)
-
-class Show(db.Model):
-  __tablename__ = 'Show'
-  id = db.Column(db.Integer, primary_key=True)
-  venue_id = db.Column(db.Integer, db.ForeignKey('Venue.id'))
-  artist_id = db.Column(db.Integer, db.ForeignKey('Artist.id'))
-  start_time = db.Column(db.DateTime, nullable=False)
-
-  def __repr__(self):
-    return f'<Show {self.venue_id} {self.artist_id}>'
+from config import app, db
+from models import Artist, Venue, Show 
 
 #----------------------------------------------------------------------------#
 # Filters.
@@ -99,19 +39,22 @@ def index():
 #----------------------------------------------------------------------------#
 #  Venues
 #----------------------------------------------------------------------------#
+
+# List all venues
 @app.route('/venues')
 def venues():
   data = []
   venues = Venue.query.all()
-  for i in range(len(venues)):
-    if not any(d.get('city') == venues[i].city for d in data):
-      data.append(dict(city = venues[i].city, state = venues[i].state, venues = [dict(id = venues[i].id, name = venues[i].name, num_upcoming_shows = Show.query.filter_by(venue_id=venues[i].id).count())]))
+  for venue in venues:
+    if not any(d.get('city') == venue.city for d in data):
+      data.append(dict(city = venue.city, state = venue.state, venues = [dict(id = venue.id, name = venue.name, num_upcoming_shows = Show.query.filter_by(venue_id=venue.id).count())]))
     else:
-      city_index = next((index for (index, d) in enumerate(data) if d['city'] == venues[i].city))
-      data[city_index]['venues'].append(dict(id = venues[i].id, name = venues[i].name, num_upcoming_shows = Show.query.filter_by(venue_id=venues[i].id).count()))
+      city_index = next((index for (index, d) in enumerate(data) if d['city'] == venue.city))
+      data[city_index]['venues'].append(dict(id = venue.id, name = venue.name, num_upcoming_shows = Show.query.filter_by(venue_id=venue.id).count()))
       
   return render_template('pages/venues.html', areas=data)
- 
+
+# Search a specific venue
 @app.route('/venues/search', methods=['POST'])
 def search_venues():
   search_term=request.form.get('search_term')
@@ -121,7 +64,8 @@ def search_venues():
     response['data'].append(dict(id = venue.id, name = venue.name, num_upcoming_shows = Show.query.filter(Show.venue_id==venue.id).count()))    
 
   return render_template('pages/search_venues.html', results=response, search_term=request.form.get('search_term', ''))
- 
+
+# Show a specific venue
 @app.route('/venues/<int:venue_id>')
 def show_venue(venue_id):
   venue = Venue.query.filter_by(id=venue_id).first()
@@ -141,9 +85,7 @@ def show_venue(venue_id):
 
   return render_template('pages/show_venue.html', venue=data)
   
-#------------------------------------------------------------------#
-#  Create Venue
-#------------------------------------------------------------------#
+# Create a new venue
 @app.route('/venues/create', methods=['GET'])
 def create_venue_form():
   form = VenueForm()
@@ -188,6 +130,7 @@ def create_venue_submission():
   
   return render_template('pages/home.html')
 
+# delete a venue
 @app.route('/venues/<venue_id>', methods=['DELETE'])
 def delete_venue(venue_id):
   try:
@@ -204,6 +147,8 @@ def delete_venue(venue_id):
 #---------------------------------------------------------------------------#
 #  Artists
 #---------------------------------------------------------------------------#
+
+# List all artists
 @app.route('/artists')
 def artists():
   artists = Artist.query.all()
@@ -213,6 +158,7 @@ def artists():
   
   return render_template('pages/artists.html', artists=data)
 
+# Search a specific artist
 @app.route('/artists/search', methods=['POST'])
 def search_artists():
   search_term = request.form.get('search_term')
@@ -223,6 +169,7 @@ def search_artists():
 
   return render_template('pages/search_artists.html', results=response, search_term=request.form.get('search_term', ''))
 
+# Show a specific artist
 @app.route('/artists/<int:artist_id>')
 def show_artist(artist_id):
   artist = Artist.query.filter_by(id=artist_id).first()
@@ -245,16 +192,15 @@ def show_artist(artist_id):
 
   return render_template('pages/show_artist.html', artist=data)
 
-#------------------------------------------------------------------#
-#  Update
-#------------------------------------------------------------------#
+# get artist information
 @app.route('/artists/<int:artist_id>/edit', methods=['GET'])
 def edit_artist(artist_id):
   artist = Artist.query.filter_by(id=artist_id)
   form = dict(id = artist.id, name = artist.name, genres = artist.genres, city = artist.city, state = artist.state, phone = artist.phone, website = artist.website, facebook_link = artist.facebook_link, seeking_venue = artist.seeking_venue, seeking_description = artist.seeking_description, image_link = artist.image_link)
 
   return render_template('forms/edit_artist.html', form=form, artist=artist)
-  
+
+# update artist information
 @app.route('/artists/<int:artist_id>/edit', methods=['POST'])
 def edit_artist_submission(artist_id):
   error = False
@@ -292,7 +238,7 @@ def edit_artist_submission(artist_id):
   return redirect(url_for('show_artist', artist_id=artist_id))
     
   
-
+# get venue information
 @app.route('/venues/<int:venue_id>/edit', methods=['GET'])
 def edit_venue(venue_id):
   venue = Venue.query.filter_by(id=venue_id)
@@ -300,6 +246,7 @@ def edit_venue(venue_id):
 
   return render_template('forms/edit_venue.html', form=form, venue=venue)
 
+# update venue information
 @app.route('/venues/<int:venue_id>/edit', methods=['POST'])
 def edit_venue_submission(venue_id):
   error = False
@@ -336,10 +283,7 @@ def edit_venue_submission(venue_id):
   
   return redirect(url_for('show_venue', venue_id=venue_id))
 
-#--------------------------------------------------------------------#
-#  Create Artist
-#--------------------------------------------------------------------#
-
+# create new artist
 @app.route('/artists/create', methods=['GET'])
 def create_artist_form():
   form = ArtistForm()
@@ -388,6 +332,7 @@ def create_artist_submission():
 #  Shows
 #------------------------------------------------------------------#
 
+# list all shows
 @app.route('/shows')
 def shows():
   shows = Show.query.all()
@@ -399,6 +344,7 @@ def shows():
 
   return render_template('pages/shows.html', shows=data)
 
+# create new show
 @app.route('/shows/create')
 def create_shows():
   form = ShowForm()
@@ -430,11 +376,13 @@ def create_show_submission():
     flash('Show successfully listed!')
   
   return render_template('pages/home.html')
-  
+
+# handle 404 error
 @app.errorhandler(404)
 def not_found_error(error):
     return render_template('errors/404.html'), 404
 
+#handle 500 error
 @app.errorhandler(500)
 def server_error(error):
     return render_template('errors/500.html'), 500
